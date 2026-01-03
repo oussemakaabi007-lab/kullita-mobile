@@ -1,29 +1,79 @@
 {
   "expo": {
-    "name": "mobile_app",
+    "name": "Kullita",
     "slug": "mobile_app",
     "version": "1.0.0",
+    "scheme": "kullita",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
+      "backgroundColor": "#05070A"
     },
     "android": {
+      "package": "com.oussema007.mobile_app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#05070A"
       },
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.WAKE_LOCK",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "kullita",
+              "host": "expo-development-client"
+            },
+            {
+              "scheme": "kullita"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "ios": {
+      "bundleIdentifier": "com.oussema007.mobile_app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Kullita to access your photos"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "2478cd48-137c-4be1-8391-91abfd8a0bf3"
+      }
     }
   }
 }
