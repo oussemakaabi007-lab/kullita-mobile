@@ -5,7 +5,7 @@ import { useKeepFullScreen } from '@/hooks/useKeepFullScreen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { CalendarDays, Heart } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { useAuth } from '../_layout';
@@ -15,15 +15,23 @@ export default function HomePage() {
   const router = useRouter();
   const { playSong, currentSong, upSongs } = useAudio();
   const { globalPlaylist, setGlobalPlaylist } = useAuth();
-  const [localPlaylist, setLocalPlaylist] = useState<{id: number, title: string} | null>(null);
+  const [localPlaylist, setLocalPlaylist] = useState<{ id: number; title: string } | null>(null);
   const [musicData, setMusicData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Start loading as false if we already know we are going to Downloads
+  const [loading, setLoading] = useState(globalPlaylist?.id !== -3);
   const [refreshing, setRefreshing] = useState(false);
 
   const activePlaylist = globalPlaylist || localPlaylist;
 
-  const fetchHomeContent = async () => {
+  const fetchHomeContent = useCallback(async () => {
+    if (globalPlaylist?.id === -3) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     try {
+      setLoading(true);
       const response = await api.get('/songs/home');
       setMusicData(response.data);
     } catch (err: any) {
@@ -32,11 +40,11 @@ export default function HomePage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [globalPlaylist?.id]);
 
   useEffect(() => {
     fetchHomeContent();
-  }, []);
+  }, [fetchHomeContent]);
 
   const formatGreeting = () => {
     const hour = new Date().getHours();
@@ -45,17 +53,10 @@ export default function HomePage() {
     return "Good evening";
   };
 
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#2E79FF" />
-      </View>
-    );
-  }
-
+  
   if (activePlaylist) {
     return (
-      <PlaylistDetails 
+      <PlaylistDetails
         playlistId={activePlaylist.id}
         initialTitle={activePlaylist.title}
         onBack={() => {
@@ -66,14 +67,31 @@ export default function HomePage() {
     );
   }
 
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color="#2E79FF" />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={styles.contentPadding}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchHomeContent();}} tintColor="#2E79FF" />}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchHomeContent();
+          }}
+          tintColor="#2E79FF"
+        />
+      }
     >
       <Text style={styles.greetingTitle}>{formatGreeting()}</Text>
-      
+
       <View style={styles.greetingGrid}>
         <TouchableOpacity style={styles.greetingItem} onPress={() => setLocalPlaylist({ id: -1, title: 'Liked Songs' })}>
           <LinearGradient colors={['#2E79FF', '#1a3a8a']} style={styles.greetingImage}>
@@ -110,10 +128,16 @@ export default function HomePage() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
             {section.items.map((item: any) => (
               <View key={item.id} style={styles.cardWrapper}>
-                <SongCard 
-                  id={item.id} title={item.title} artist={item.artist} cover={item.coverUrl}
+                <SongCard
+                  id={item.id}
+                  title={item.title}
+                  artist={item.artist}
+                  cover={item.coverUrl}
                   isActive={currentSong?.id === item.id}
-                  onClick={() => { upSongs(section.items); playSong(item); }}
+                  onClick={() => {
+                    upSongs(section.items);
+                    playSong(item);
+                  }}
                 />
               </View>
             ))}

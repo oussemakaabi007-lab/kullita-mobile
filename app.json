@@ -14,7 +14,7 @@
       "backgroundColor": "#05070A"
     },
     "android": {
-      "package": "com.oussema007.mobile_app",
+      "package": "com.oussema003.mobile_app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#05070A"
@@ -24,7 +24,8 @@
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.WAKE_LOCK",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
       "intentFilters": [
         {
@@ -47,7 +48,7 @@
       ]
     },
     "ios": {
-      "bundleIdentifier": "com.oussema007.mobile_app",
+      "bundleIdentifier": "com.oussema003.mobile_app",
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
@@ -72,7 +73,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "2478cd48-137c-4be1-8391-91abfd8a0bf3"
+        "projectId": "79057943-3287-4ae9-92d7-39697ee986a0"
       }
     }
   }
