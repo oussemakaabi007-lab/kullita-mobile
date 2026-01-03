@@ -40,7 +40,7 @@ export default function ProfileScreen() {
     useKeepFullScreen();
     const router = useRouter();
     const { logout, setGlobalPlaylist } = useAuth();
-  const { setshow } = useAudio();
+  const { resetPlayer } = useAudio();
     const [userInfo, setUserInfo] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
@@ -117,7 +117,7 @@ export default function ProfileScreen() {
     const handleLogout = async () => {
         try {
             await TrackPlayer.reset();
-            setshow(false);
+            resetPlayer();
             await logout();
             router.replace("/(public)/login");
         } catch (e) {

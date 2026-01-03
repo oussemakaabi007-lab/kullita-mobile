@@ -5,12 +5,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, DeviceEventEmitter, Dimensions, Image, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../services/api';
 import { useAudio } from './AudioProvider';
-import TrackPlayer, { Event, useTrackPlayerEvents } from 'react-native-track-player';
+import TrackPlayer from 'react-native-track-player';
 
-const { width } = Dimensions.get('screen');
+const { width, height } = Dimensions.get('screen');
 
-export default function Audioplayer({show, currentSong, onNext, onPrevious, queue = [] }: any) {
-    const [localTrack, setLocalTrack] = useState<any>(null);
+export default function Audioplayer({show, currentSong, onNext, onPrevious }: any) {
     const { isPlaying, togglePlayback, updateFavoriteStatus, position, duration, seek, playSong, downloadSong, upSongs, songs } = useAudio();
     const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
     const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
@@ -22,23 +21,7 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
     const [toast, setToast] = useState({ message: "", visible: false });
     const toastOpacity = useRef(new Animated.Value(0)).current;
 
-    useEffect(() => {
-        const sync = async () => {
-            const active = await TrackPlayer.getActiveTrack();
-            if (active) setLocalTrack({ id: Number(active.id), title: active.title, artist: active.artist, coverUrl: active.artwork, audioUrl: active.url });
-        };
-        sync();
-    }, []);
-
-    useEffect(() => {
-        if (currentSong?.id !== -1) setLocalTrack(currentSong);
-    }, [currentSong]);
-
-    useTrackPlayerEvents([Event.PlaybackActiveTrackChanged], async (e) => {
-        if (e.track) setLocalTrack({ id: Number(e.track.id), title: e.track.title, artist: e.track.artist, coverUrl: e.track.artwork, audioUrl: e.track.url });
-    });
-
-    const activeSong = songs.find((s: any) => s.id === localTrack?.id) || localTrack;
+    const activeSong = songs.find((s: any) => s.id === currentSong?.id) || currentSong;
 
     useEffect(() => {
         if (Platform.OS === 'android') {
@@ -55,12 +38,16 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
     }, []);
 
     const removeFromQueue = async (id: number) => {
-        const idx = queue.findIndex((item: any) => item.id === id);
-        if (idx !== -1) {
-            await TrackPlayer.remove(idx);
-            upSongs(queue.filter((item: any) => item.id !== id));
-            showToast("Removed from queue");
-        }
+        try {
+            const queue = await TrackPlayer.getQueue();
+            const idx = queue.findIndex((item: any) => item.id === id.toString());
+            if (idx !== -1) {
+                await TrackPlayer.remove(idx);
+                const updatedList = songs.filter((item: any) => item.id !== id);
+                await upSongs(updatedList);
+                showToast("Removed from queue");
+            }
+        } catch (e) {}
     };
 
     const showToast = (message: string) => {
@@ -75,14 +62,13 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
     const handleDownload = async () => {
         const isAlreadyDownloaded = activeSong.localUri || songs.find((s: any) => s.id === activeSong.id)?.localUri;
         if (isAlreadyDownloaded) return showToast("Available offline");
-        
         setDownloadingSongId(activeSong.id);
         showToast("Downloading...");
         try { 
             await downloadSong(activeSong); 
             showToast("Complete"); 
         } catch (e) { 
-            showToast("Failed:Song already downloaded or Error"); 
+            showToast("Failed: Error"); 
         } finally { 
             setDownloadingSongId(null); 
         }
@@ -92,23 +78,52 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
         setIsLoading(true);
         const isFav = activeSong.isFavorite;
         updateFavoriteStatus(activeSong.id, !isFav);
-        try { await api({ method: isFav ? 'DELETE' : 'POST', url: isFav ? '/favorite/del' : '/favorite/add', data: { songId: activeSong.id } }); showToast(isFav ? "Removed" : "Added"); } catch (e) { updateFavoriteStatus(activeSong.id, isFav); } finally { setIsLoading(false); }
+        try { 
+            await api({ method: isFav ? 'DELETE' : 'POST', url: isFav ? '/favorite/del' : '/favorite/add', data: { songId: activeSong.id } }); 
+            showToast(isFav ? "Removed" : "Added"); 
+        } catch (e) { 
+            updateFavoriteStatus(activeSong.id, isFav); 
+        } finally { 
+            setIsLoading(false); 
+        }
     };
 
     const fetchPlaylists = async () => {
         setIsLoading(true);
-        try { const res = await api.get('/playlist/showAll'); setUserPlaylists(res.data.playlists || []); setIsPlaylistModalOpen(true); } catch (e) {} finally { setIsLoading(false); }
+        try { 
+            const res = await api.get('/playlist/showAll'); 
+            setUserPlaylists(res.data.playlists || []); 
+            setIsPlaylistModalOpen(true); 
+        } catch (e) {} finally { 
+            setIsLoading(false); 
+        }
     };
 
     const handleCreatePlaylist = async () => {
         if (!newPlaylistName.trim()) return;
         setIsLoading(true);
-        try { const res = await api.post('/playlist/create', { name: newPlaylistName }); await addToPlaylist(res.data.playlist.id, true); setNewPlaylistName(""); setIsCreating(false); } catch (e) {} finally { setIsLoading(false); }
+        try { 
+            const res = await api.post('/playlist/create', { name: newPlaylistName }); 
+            await addToPlaylist(res.data.playlist.id, true); 
+            setNewPlaylistName(""); 
+            setIsCreating(false); 
+        } catch (e) {} finally { 
+            setIsLoading(false); 
+        }
     };
 
     const addToPlaylist = async (playlistId: number, silent = false) => {
         setIsLoading(true);
-        try { await api.post('/playlist/addSong', { playlistId, songId: activeSong.id }); DeviceEventEmitter.emit('SONG_ADDED_TO_PLAYLIST', { playlistId, song: activeSong }); if (!silent) showToast("Added"); setIsPlaylistModalOpen(false); } catch (e) { showToast("Already exists"); } finally { setIsLoading(false); }
+        try { 
+            await api.post('/playlist/addSong', { playlistId, songId: activeSong.id }); 
+            DeviceEventEmitter.emit('SONG_ADDED_TO_PLAYLIST', { playlistId, song: activeSong }); 
+            if (!silent) showToast("Added"); 
+            setIsPlaylistModalOpen(false); 
+        } catch (e) { 
+            showToast("Already exists"); 
+        } finally { 
+            setIsLoading(false); 
+        }
     };
 
     const formatTime = (s: number) => {
@@ -118,7 +133,7 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
         return `${m}:${sec.toString().padStart(2, '0')}`;
     };
 
-    if (!activeSong || show===false) return null;
+    if (!activeSong || show === false || activeSong.id === -1) return null;
 
     return (
         <>
@@ -157,8 +172,8 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
                         <View style={styles.artContainer}><Image source={{ uri: activeSong.coverUrl }} style={styles.bigArt} /></View>
                         <View style={styles.fullMetaRow}>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.fullTitle}>{activeSong.title}</Text>
-                                <Text style={styles.fullArtist}>{activeSong.artist}</Text>
+                                <Text style={styles.fullTitle} numberOfLines={1}>{activeSong.title}</Text>
+                                <Text style={styles.fullArtist} numberOfLines={1}>{activeSong.artist}</Text>
                             </View>
                             <View style={{ flexDirection: 'row', gap: 20 }}>
                                 <TouchableOpacity onPress={handleDownload}><Download size={28} color={activeSong.localUri ? "#2E79FF" : "#fff"} /></TouchableOpacity>
@@ -175,11 +190,12 @@ export default function Audioplayer({show, currentSong, onNext, onPrevious, queu
                             <TouchableOpacity onPress={onNext}><SkipForward size={35} color="#fff" fill="#fff" /></TouchableOpacity>
                         </View>
                         <View style={styles.queueHeader}><ListMusic size={20} color="#2E79FF" /><Text style={styles.queueTitle}>Queue</Text></View>
-                        {queue.map((item: any) => (
+                        
+                        {songs.map((item: any) => (
                             <View key={item.id} style={[styles.queueItem, item.id === activeSong.id && styles.activeQueueItem]}>
-                                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 15 }} onPress={() => playSong(item, queue)}>
+                                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 15 }} onPress={() => playSong(item, songs)}>
                                     <Image source={{ uri: item.coverUrl }} style={styles.queueArt} />
-                                    <View style={{ flex: 1 }}><Text style={[styles.queueSongName, item.id === activeSong.id && { color: '#2E79FF' }]}>{item.title}</Text><Text style={styles.queueArtistName}>{item.artist}</Text></View>
+                                    <View style={{ flex: 1 }}><Text style={[styles.queueSongName, item.id === activeSong.id && { color: '#2E79FF' }]} numberOfLines={1}>{item.title}</Text><Text style={styles.queueArtistName} numberOfLines={1}>{item.artist}</Text></View>
                                 </TouchableOpacity>
                                 {item.id !== activeSong.id && <TouchableOpacity onPress={() => removeFromQueue(item.id)}><Trash2 size={18} color="#FF4D4D" /></TouchableOpacity>}
                             </View>
@@ -224,19 +240,19 @@ const styles = StyleSheet.create({
     toastContainer: { position: 'absolute', left: 20, right: 20, backgroundColor: '#2E79FF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 25, gap: 8, zIndex: 9999 },
     toastText: { color: '#fff', fontSize: 13, fontWeight: '600' },
     fullScreenContainer: { flex: 1, backgroundColor: '#05070A' },
-    fullHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, marginBottom: 20 },
+    fullHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, marginBottom: 15 },
     fullHeaderTitle: { color: '#fff', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
     fullScrollContent: { paddingHorizontal: 25, paddingBottom: 100 },
-    artContainer: { width: width - 50, height: width - 50, borderRadius: 20, overflow: 'hidden', marginBottom: 30, backgroundColor: '#111', alignSelf: 'center' },
+    artContainer: { width: width * 0.75, height: width * 0.75, borderRadius: 20, overflow: 'hidden', marginBottom: 25, backgroundColor: '#111', alignSelf: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15 },
     bigArt: { width: '100%', height: '100%' },
-    fullMetaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-    fullTitle: { color: '#fff', fontSize: 26, fontWeight: '800', flex: 1 },
-    fullArtist: { color: '#2E79FF', fontSize: 18, marginTop: 4 },
-    fullProgressSection: { marginBottom: 30 },
+    fullMetaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    fullTitle: { color: '#fff', fontSize: 24, fontWeight: '800', flex: 1 },
+    fullArtist: { color: '#2E79FF', fontSize: 17, marginTop: 2 },
+    fullProgressSection: { marginBottom: 25 },
     timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -5 },
     fullTimeText: { color: '#8E8E93', fontSize: 12 },
-    fullControlsRow: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginBottom: 40 },
-    fullPlayBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+    fullControlsRow: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginBottom: 35 },
+    fullPlayBtn: { width: 75, height: 75, borderRadius: 37.5, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
     queueHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20, borderTopWidth: 1, borderTopColor: '#1A1D23', paddingTop: 20 },
     queueTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
     queueItem: { flexDirection: 'row', alignItems: 'center', gap: 15, marginBottom: 12 },
